@@ -1,0 +1,63 @@
+#include <Servo.h>
+
+Servo servo;
+
+int posNeutra = 120;
+int posAlvo = 120;
+int posRecuo = 120;
+
+unsigned long tempoUltimoMovimento = 0;
+int etapaMovimento = 0;  // 0 = parado, 1 = recuo feito, 2 = decisão feita
+int comandoAtual = -1;   // Armazena qual comando está em execução
+
+void setup() {
+  Serial.begin(9600);
+  servo.attach(9);
+  servo.write(posNeutra);
+  Serial.println("Sistema pronto. Aguardando comandos do Python.");
+}
+
+void loop() {
+  // Apenas aceita novo comando se parado
+  if (etapaMovimento == 0 && Serial.available() > 0) {
+    int comando = Serial.parseInt();
+
+    // Limpa qualquer resíduo no buffer
+    while (Serial.available()) Serial.read();
+
+    if (comando == 0) { // azul
+      posRecuo = posNeutra + 50;
+      posAlvo = posNeutra - 50;
+      comandoAtual = comando;
+      etapaMovimento = 1;
+      servo.write(posRecuo);
+      Serial.println("AZUL: recuo para direita (+50°)");
+      tempoUltimoMovimento = millis();
+    } 
+    else if (comando == 180) { // vermelho
+      posRecuo = posNeutra - 50;
+      posAlvo = posNeutra + 50;
+      comandoAtual = comando;
+      etapaMovimento = 1;
+      servo.write(posRecuo);
+      Serial.println("VERMELHO: recuo para esquerda (-50°)");
+      tempoUltimoMovimento = millis();
+    }
+  }
+
+  // Após 2 segundos: empurrar
+  if (etapaMovimento == 1 && millis() - tempoUltimoMovimento >= 2000) {
+    servo.write(posAlvo);
+    Serial.println("Movimento de decisão (empurrar objeto).");
+    tempoUltimoMovimento = millis();
+    etapaMovimento = 2;
+  }
+
+  // Após mais 1 segundo: voltar para neutro
+  if (etapaMovimento == 2 && millis() - tempoUltimoMovimento >= 1000) {
+    servo.write(posNeutra);
+    Serial.println("Voltando para posição neutra (120°).");
+    etapaMovimento = 0;
+    comandoAtual = -1; // Libera para novo comando
+  }
+}
